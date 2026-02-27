@@ -2,7 +2,7 @@
 
 ## Overview
 
-BuckeyeBot is a unified AI assistant for Ohio State University students, accessible entirely via SMS. It consolidates campus services, academic tools, food ordering, and real-time campus data into a single text-based interface. The system is built on the BeeAI Framework with IBM Granite as the LLM backbone, running 56 agent tools across 6 domains.
+BuckeyeBot is a unified AI assistant for Ohio State University students, accessible via iMessage, RCS, and SMS. It consolidates campus services, academic tools, food ordering, and real-time campus data into a single messaging interface — with typing indicators, read receipts, and tapback reactions that make it feel alive. The system is built on the BeeAI Framework with IBM Granite as the LLM backbone, running 60 agent tools across 6 domains.
 
 ---
 
@@ -11,7 +11,7 @@ BuckeyeBot is a unified AI assistant for Ohio State University students, accessi
 | Component | Technology | Role |
 |---|---|---|
 | **Agent** | BeeAI `RequirementAgent` + IBM Granite 3 8B | Orchestrates all tool calls and generates SMS-friendly responses |
-| **SMS Gateway** | Flask + Twilio webhook | Receives/sends texts; handles message chunking for SMS limits |
+| **Messaging Gateway** | Flask + Linq Partner API v3 | Receives/sends iMessage, RCS, SMS; typing indicators, read receipts, tapbacks |
 | **Campus APIs** | `httpx` async client → OSU content APIs | Real-time campus data (dining, buses, parking, events, etc.) |
 | **Canvas (Carmen)** | `canvasapi` Python SDK | Course info, assignments, grades, announcements |
 | **Grubhub** | Appium + Android emulator | Automated food ordering via UI automation |
@@ -20,15 +20,18 @@ BuckeyeBot is a unified AI assistant for Ohio State University students, accessi
 
 ---
 
-## SMS Interface
+## Messaging Interface
 
-**How it works:** A student texts the Twilio phone number. The Flask server receives the webhook, passes the message to the BeeAI agent, and returns the response as TwiML.
+**How it works:** A student texts the Linq-provisioned phone number. The Flask server receives a webhook event, returns `200 OK` immediately, then processes the message in a background thread — showing typing indicators, sending read receipts, and replying via the Linq API.
 
 **Implemented features:**
-- Incoming SMS webhook at `/sms` (POST)
-- Automatic message chunking for SMS length limits (splits at 1500 chars on newline/space boundaries)
-- XML-safe TwiML response generation with proper escaping
-- Outbound SMS via Twilio REST API (for proactive messages)
+- Incoming message webhook at `/webhook` (POST) with HMAC-SHA256 signature verification
+- iMessage (blue bubbles) as preferred protocol, with automatic RCS/SMS fallback
+- **Typing indicators** — dots appear while the agent is thinking
+- **Read receipts** — messages marked as read upon receipt
+- **Tapback reactions** — auto-acknowledges every message with a thumbs-up
+- Outbound messaging via Linq Partner API v3 (iMessage/RCS/SMS)
+- Phone-to-chat-ID mapping cache with JSON file persistence
 - Error handling with user-friendly fallback messages
 
 ---
@@ -319,8 +322,7 @@ Located in `current-buckeyelinkautomation/scarlet/`, this is a standalone Next.j
 | Package | Purpose |
 |---|---|
 | `beeai-framework[watsonx]` | Agent framework + IBM watsonx LLM backend |
-| `flask` | SMS webhook server |
-| `twilio` | SMS send/receive |
+| `flask` | Messaging webhook server |
 | `httpx` | Async HTTP client for OSU APIs |
 | `python-dotenv` | Environment variable management |
 | `canvasapi` | Canvas LMS Python SDK |

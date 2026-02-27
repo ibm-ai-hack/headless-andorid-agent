@@ -16,13 +16,13 @@ logger = logging.getLogger("buckeyebot")
 
 def main():
     from agent import create_agent
-    from sms.webhook import app, set_agent_handler
+    from messaging.webhook import app, set_agent_handler
+    from messaging import chat_store
+
+    chat_store.load()
 
     agent = create_agent()
     logger.info("BuckeyeBot agent initialized")
-
-    # Per-user conversation memory (phone number -> list of messages)
-    conversations: dict[str, list] = {}
 
     async def handle_message(text: str, from_number: str) -> str:
         try:
@@ -36,7 +36,7 @@ def main():
 
     port = int(os.environ.get("PORT", 5000))
     logger.info("Starting BuckeyeBot on port %d", port)
-    logger.info("Configure your Twilio webhook to POST to: http://<your-host>:%d/sms", port)
+    logger.info("Configure your Linq webhook to POST to: http://<your-host>:%d/webhook", port)
 
     app.run(host="0.0.0.0", port=port, debug=False)
 
