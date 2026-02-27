@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-A locally-hosted AI agent that unifies several endpoints used by Ohio State University students into a single SMS interface. Users text a Twilio phone number and the agent autonomously handles requests across campus services, food ordering, and academic tools.
+A locally-hosted AI agent that unifies several endpoints used by Ohio State University students into a single messaging interface. Users text a Linq-provisioned phone number (iMessage, RCS, or SMS) and the agent autonomously handles requests across campus services, food ordering, and academic tools — with typing indicators, read receipts, and tapback reactions that make it feel alive.
 
 **Core capabilities:**
 - **Campus Services** — dining, bus tracking, parking, events, libraries, rec sports, and 50+ OSU APIs via the Ohio State MCP server
 - **Food Ordering** — place Grubhub orders through Android emulation scripts
 - **Academic Tools** — access BuckeyeLink services (scheduling, financial aid, grades) via browser automation
-- **SMS Interface** — all interactions happen over text via Twilio
+- **Messaging Interface** — iMessage (blue bubbles), RCS, and SMS via Linq Partner API with typing indicators, read receipts, and emoji reactions
 
 ## Architecture
 
@@ -33,11 +33,17 @@ Key conventions:
 - Use `@tool` decorator for custom tools
 - Wrap agent runs in `try/except FrameworkError`
 
-### SMS Interface — Twilio
+### Messaging Interface — Linq Partner API
 
-- **Twilio MCP Server** — `@twilio-alpha/mcp` provides SMS send/receive capabilities as MCP tools
-- Users interact by texting the Twilio phone number
-- Services loaded: `twilio_api_v2010`, `twilio_messaging_v1`
+- **Linq Partner API v3** — native iMessage, RCS, and SMS messaging
+- Users text the Linq-provisioned phone number; iMessage is preferred with automatic SMS fallback
+- **Alive features:**
+  - Typing indicators — dots appear while the agent processes
+  - Read receipts — messages marked as read on receipt
+  - Tapback reactions — auto-acknowledges messages with a thumbs-up
+  - Rich media — supports images, videos, and file attachments
+- **Architecture:** Flask webhook at `/webhook` receives JSON events from Linq, returns `200 OK` immediately, processes in background thread, sends replies via separate API call
+- **Modules:** `messaging/client.py` (HTTP client), `messaging/sender.py` (high-level send/typing/react), `messaging/webhook.py` (Flask handler), `messaging/verify.py` (HMAC signature verification), `messaging/events.py` (event parsing), `messaging/chat_store.py` (phone-to-chat-ID cache)
 
 ### Campus APIs — Ohio State MCP Server
 
@@ -74,33 +80,46 @@ Browser automation (e.g., Playwright/Selenium) to access tools within http://buc
 
 ## Environment
 
-- Twilio credentials stored in `.env` (gitignored)
+- Linq and LLM credentials stored in `.env` (gitignored)
 - MCP servers configured per-project in Claude Code's local config
 - Ohio State MCP server: `ohio-state-mcp-server`
-- BeeAI and LLM provider API keys in `.env`
 
 ### Required Environment Variables
 
 ```
-# Twilio
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=
+# Linq Partner API
+LINQ_API_TOKEN=           # Bearer token from dashboard.linqapp.com
+LINQ_FROM_NUMBER=         # E.164 phone number provisioned by Linq
+LINQ_WEBHOOK_SECRET=      # HMAC signing secret (from webhook registration)
+LINQ_PREFERRED_SERVICE=iMessage  # iMessage | RCS | SMS
 
-# LLM Provider (pick one or more)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-# Or use local Ollama — no key needed
+# IBM watsonx
+WATSONX_API_KEY=
+WATSONX_PROJECT_ID=
+WATSONX_API_URL=https://us-south.ml.cloud.ibm.com
 ```
 
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in credentials
 2. Install Python dependencies: `pip install beeai-framework`
-3. Install Node.js 20+ (for Twilio MCP server)
-4. Install the Ohio State MCP server: `npx ohio-state-mcp-server` (or configure in MCP settings)
-5. (Optional) Install Ollama and pull a model: `ollama pull granite3.3`
-6. The Twilio MCP server starts automatically when Claude Code opens this project
+3. Install the Ohio State MCP server: `npx ohio-state-mcp-server` (or configure in MCP settings)
+4. (Optional) Install Ollama and pull a model: `ollama pull granite3.3`
+5. Register your Linq webhook (one-time):
+   ```bash
+   curl -X POST https://api.linqapp.com/api/partner/v3/webhook-subscriptions \
+     -H "Authorization: Bearer $LINQ_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "target_url": "https://your-domain/webhook",
+       "subscribed_events": [
+         "message.received", "message.delivered", "message.read", "message.failed",
+         "reaction.added", "reaction.removed",
+         "chat.typing_indicator.started", "chat.typing_indicator.stopped"
+       ]
+     }'
+   ```
+   Save the returned `signing_secret` as `LINQ_WEBHOOK_SECRET` in your `.env`.
 
 ## BeeAI Framework Quick Reference
 
@@ -172,5 +191,4 @@ ollama serve
 
 # Install dependencies
 pip install beeai-framework
-npm install  # for Twilio MCP
 ```

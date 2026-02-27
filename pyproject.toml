@@ -1,12 +1,11 @@
 [project]
 name = "buckeyebot"
 version = "0.1.0"
-description = "Unified SMS-based AI agent for Ohio State University students"
+description = "Unified AI agent for Ohio State University students via iMessage, RCS, and SMS"
 requires-python = ">=3.11"
 dependencies = [
     "beeai-framework[watsonx]",
     "flask",
-    "twilio",
     "httpx",
     "python-dotenv",
     "canvasapi",
